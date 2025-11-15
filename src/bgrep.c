@@ -1,5 +1,6 @@
 #include "bgrep.h"
 
+// disclaimer: argument parsing doesn't handle weird syntax cases. 
 int main(int argc, char *argv[]) {
     bool pattern_flag = false;
     bool context_flag = false;
@@ -18,7 +19,7 @@ int main(int argc, char *argv[]) {
                 pattern = optarg;
                 break;
             case '?':
-                return 255;
+                return 1;
         }
     }
 
@@ -40,15 +41,15 @@ int main(int argc, char *argv[]) {
 }
 
 int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, int file_count) {
-    printf("pattern flag: %d\n", pattern_flag);
-    printf("context flag: %d\n", context_flag);
-    printf("pattern: %s\n", pattern); 
+    // printf("pattern flag: %d\n", pattern_flag);
+    // printf("context flag: %d\n", context_flag);
+    // printf("pattern: %s\n", pattern); 
 
-    printf("%d", file_count);
+    // printf("%d", file_count);
 
-    for (int i = 0; i < file_count; i++) {
-        printf("%s ", file_arr[i]);
-    }
+    // for (int i = 0; i < file_count; i++) {
+    //     printf("%s ", file_arr[i]);
+    // }
 
     return 0;
 }
