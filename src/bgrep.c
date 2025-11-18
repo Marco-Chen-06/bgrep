@@ -41,15 +41,32 @@ int main(int argc, char *argv[]) {
 }
 
 int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, int file_count) {
-    // printf("pattern flag: %d\n", pattern_flag);
-    // printf("context flag: %d\n", context_flag);
-    // printf("pattern: %s\n", pattern); 
+    int pattern_fd; // only used if pattern flag is set
+    int pattern_len; // stores length of pattern (if -p is set, this should be the file size of the pattern file)
+    if (pattern_flag) {
+        if ((pattern_fd = open(pattern, O_RDONLY)) < 0) {
+            fprintf(stderr, "Failed to open pattern file %s: %s.", pattern, strerror(errno));
+            return -1;
+        }
 
-    // printf("%d", file_count);
+        pattern_len = lseek(pattern_fd, 0, SEEK_END);
+        pattern = mmap(NULL, pattern_len, PROT_READ, MAP_PRIVATE, pattern_fd, 0);
+    } else {
+        // if pattern flag is not set, then pattern_len is just the length of pattern
+        pattern_len = strlen(pattern);
+    }
 
-    // for (int i = 0; i < file_count; i++) {
-    //     printf("%s ", file_arr[i]);
-    // }
+    printf("PATTERN: %s\n", pattern);
+    printf("Pattern length: %d\n", pattern_len);
 
+    
+
+    // unmap the pattern if pattern flag is set
+    if (pattern_flag) {
+        if (munmap(pattern, pattern_len+1) == -1) {
+                fprintf(stderr, "Failed to unmap pattern file to a string: %s.", strerror(errno));
+                return -1;
+        }
+    }
     return 0;
 }
