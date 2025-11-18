@@ -56,7 +56,22 @@ int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, 
         pattern_len = strlen(pattern);
     }
 
-    printf("PATTERN: %s\n", pattern);
+    // entire grep and pattern matching starts here
+
+
+
+
+
+    // entire grep and pattern matching ends here
+
+
+    printf("Pattern flag: %d\n", pattern_flag);
+    printf("Context flag: %d\n", context_flag);
+    printf("Pattern: %s\n", pattern);
+    for (int i = 0; i < file_count; i++) {
+        printf("File %d: %s\n", i, file_arr[i]);
+    }
+    printf("File count: %d\n", file_count);
     printf("Pattern length: %d\n", pattern_len);
 
     
