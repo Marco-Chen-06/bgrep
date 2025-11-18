@@ -23,10 +23,12 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // store the first non-option argument in "pattern" if -p not found
     if (!pattern_flag) {
         pattern = argv[optind++];
     }
     
+    // throw the rest of the non-option arguments into file_arr to be used later
     int file_count;
     while ((argc - optind) > 0) {
         file_arr[file_count++] = argv[optind++]; 
@@ -43,6 +45,9 @@ int main(int argc, char *argv[]) {
 int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, int file_count) {
     int pattern_fd; // only used if pattern flag is set
     int pattern_len; // stores length of pattern (if -p is set, this should be the file size of the pattern file)
+
+
+    // if -p is set, open pattern file with mmap and point *pattern to it. Otherwise, pattern was already instantiated from getopt
     if (pattern_flag) {
         if ((pattern_fd = open(pattern, O_RDONLY)) < 0) {
             fprintf(stderr, "Failed to open pattern file %s: %s.", pattern, strerror(errno));
@@ -65,6 +70,7 @@ int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, 
     // entire grep and pattern matching ends here
 
 
+    // debug printing, this isn't necessary for the program to work
     printf("Pattern flag: %d\n", pattern_flag);
     printf("Context flag: %d\n", context_flag);
     printf("Pattern: %s\n", pattern);
