@@ -1,7 +1,9 @@
+/*
+* I'm only saving this because of the perror statements
+*/
+
+
 #include "bgrep.h"
-
-int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, int file_count, int context_bytes);
-
 
 int main(int argc, char* argv[]) {
     //this is the case where there is no flags, only the default
@@ -9,27 +11,21 @@ int main(int argc, char* argv[]) {
     bool pattern_flag = false;
     bool context_flag = false;
     char *pattern = NULL;
-    int context_bytes = 0;
-
 
     char **file_arr = malloc(BUFSIZ * sizeof(char*)); // can store up to BUFSIZ filenames
 
     int opt;
-    while ((opt = getopt(argc, argv, "c:p:")) != -1) {
+    while ((opt = getopt(argc, argv, "cp:")) != -1) {
         switch (opt) {
             case 'c':
                 context_flag = true;
-                if((context_bytes = atoi(optarg)) == 0) {
-                    fprintf(stderr, "Could not convert optarg %s to integer. %s\n", optarg, strerror(errno));                    
-                    return -1;
-                }
                 break;
             case 'p':
                 pattern_flag = true;
                 pattern = optarg;
                 break;
             case '?':
-                return -1;
+                return 1;
         }
     }
 
@@ -42,7 +38,7 @@ int main(int argc, char* argv[]) {
         file_arr[file_count++] = argv[optind++]; 
     }
 
-    int bgrep_return_value = bgrep(pattern_flag, context_flag, pattern, file_arr, file_count, context_bytes);
+    int bgrep_return_value = bgrep(pattern_flag, context_flag, pattern, file_arr, file_count);
 
     free(file_arr);
 
@@ -55,9 +51,7 @@ int main(int argc, char* argv[]) {
 }
 
 
-int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, int file_count, int context_bytes) {
-
-    bool match_flag = false;
+int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, int file_count) {
 
     int pattern_length = 0;
     
@@ -65,7 +59,7 @@ int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, 
         int pattern_fd = open(pattern, O_RDONLY);
         
         if(pattern_fd == -1) {
-            perror("could not open pattern file");
+            fprintf(stderr, "Could not open pattern file: %s. %s", pattern, strerror(errno));
             return -1;
         }
 
@@ -74,12 +68,12 @@ int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, 
         pattern = mmap(NULL, pattern_length, PROT_READ, MAP_PRIVATE, pattern_fd, 0);
 
         if(close(pattern_fd) == -1) {
-            perror("could not close pattern file");
+            fprintf(stderr, "Could not close pattern file. %s", strerror(errno));
             return -1;
         }
 
         if(pattern == MAP_FAILED) {
-            perror("failed to map pattern files");
+            fprintf(stderr, "Failed to map pattern files. %s", strerror(errno));
             return -1;
         }
     }
@@ -92,10 +86,10 @@ int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, 
 
     for(int i = 0; i < file_count; i++) {
 
-        int file_fd = open(file_arr[i], O_CREAT | O_RDONLY);
+        int file_fd = open(file_arr[i], O_RDONLY);
 
         if(file_fd == -1) {
-            perror("could not open file");
+            fprintf(stderr, "Could not open file: %s", file_arr[i], strerror(errno));
             return -1;
         }
 
@@ -104,52 +98,49 @@ int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, 
         char *mapped_file = mmap(NULL, mapped_file_length, PROT_READ, MAP_PRIVATE, file_fd, 0);
 
         if(close(file_fd) == -1) {
-            perror("could not close file");
+            fprintf(stderr, "Could not close file: %s", file_arr[i], strerror(errno));
             return -1;
         }
 
         if(mapped_file == MAP_FAILED) {
-            perror("failed to map file");
+            fprintf(stderr, "Failed to map file: %s", file_arr[i], strerror(errno));
             return -1;
         }
-        
+
         //from this point on now i have everything ready
 
-        
-        for(int j = 0; j < mapped_file_length; j++) {
 
-            int bit_count = 0;
+        for(int i = 0; i < mapped_file_length; i++) {
+            int count = 0;
+            bool match_failed_flag = 0;
 
-            if(pattern[0] == mapped_file[j]) {
-                for(int k = 0; k < pattern_length; k++) {
-                    if(pattern[k] == mapped_file[k+j]) {
-                        bit_count++;
+            if(pattern[0] == mapped_file[i]) {
+                for(int j = 0; j < pattern_length; j++) {
+                    if(pattern[j] != mapped_file[i+j]) {
+                        match_failed_flag = true;
                     }
                 }
             }
 
-            if(bit_count == pattern_length) {
-                fprintf(stdout, "%s:%d\n", file_arr[i], j);
-                match_flag = true;
+            if(match_failed_flag == false) {
+                fprintf(stdout, "match complete\n");
+                return 0;
             }
         }
 
+
         if(munmap(mapped_file, mapped_file_length) == -1) {
-            perror("munmap failed");
+            fprintf(stderr, "Failed to munmap a mapped_file. %s", strerror(errno));
             return -1;
         }
 
-    }
-
-    if(pattern_flag == true) { //this part not really necessary because the process will just unmap automatically upon exiting
-        if(munmap(pattern, pattern_length) == -1) {
-            perror("munmap failed for pattern file");
-            return -1;
+        if(pattern_flag == true) {
+            if(munmap(pattern, pattern_length) == -1) {
+                fprintf(stderr, "Failed to munmap pattern file. %s", strerror(errno));
+                return -1;
+            }
         }
-    }
 
-    if(match_flag == true) {
-        return 0;
     }
 
     fprintf(stdout, "no errors or matches found\n");

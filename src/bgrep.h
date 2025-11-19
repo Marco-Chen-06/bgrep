@@ -19,4 +19,4 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 
-int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, int file_count);
+int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, int file_count, int context_bytes);
