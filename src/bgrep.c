@@ -1,7 +1,8 @@
 #include "bgrep.h"
 
-// disclaimer: argument parsing doesn't handle weird syntax cases. 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
+    //this is the case where there is no flags, only the default
+
     bool pattern_flag = false;
     bool context_flag = false;
     char *pattern = NULL;
@@ -23,71 +24,122 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    // store the first non-option argument in "pattern" if -p not found
     if (!pattern_flag) {
         pattern = argv[optind++];
     }
     
-    // throw the rest of the non-option arguments into file_arr to be used later
-    int file_count;
+    int file_count = 0;
     while ((argc - optind) > 0) {
         file_arr[file_count++] = argv[optind++]; 
     }
 
-    int bgrep_return_value;
-    if (bgrep_return_value = bgrep(pattern_flag, context_flag, pattern, file_arr, file_count) != 0) {
+    int bgrep_return_value = bgrep(pattern_flag, context_flag, pattern, file_arr, file_count);
+
+    free(file_arr);
+
+    if(bgrep_return_value != 0) {
         // error occured in bgrep function call
         return bgrep_return_value;
     }
     return 0;
+
 }
 
+
 int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, int file_count) {
-    int pattern_fd; // only used if pattern flag is set
-    int pattern_len; // stores length of pattern (if -p is set, this should be the file size of the pattern file)
 
-
-    // if -p is set, open pattern file with mmap and point *pattern to it. Otherwise, pattern was already instantiated from getopt
-    if (pattern_flag) {
-        if ((pattern_fd = open(pattern, O_RDONLY)) < 0) {
-            fprintf(stderr, "Failed to open pattern file %s: %s.", pattern, strerror(errno));
+    int pattern_length = 0;
+    
+    if(pattern_flag == true) {
+        int pattern_fd = open(pattern, O_RDONLY);
+        
+        if(pattern_fd == -1) {
+            fprintf(stderr, "Could not open pattern file: %s. %s", pattern, strerror(errno));
             return -1;
         }
 
-        pattern_len = lseek(pattern_fd, 0, SEEK_END);
-        pattern = mmap(NULL, pattern_len, PROT_READ, MAP_PRIVATE, pattern_fd, 0);
-    } else {
-        // if pattern flag is not set, then pattern_len is just the length of pattern
-        pattern_len = strlen(pattern);
-    }
+        pattern_length = lseek(pattern_fd, 0, SEEK_END);
+        
+        pattern = mmap(NULL, pattern_length, PROT_READ, MAP_PRIVATE, pattern_fd, 0);
 
-    // entire grep and pattern matching starts here
+        if(close(pattern_fd) == -1) {
+            fprintf(stderr, "Could not close pattern file. %s", strerror(errno));
+            return -1;
+        }
 
-
-
-
-
-    // entire grep and pattern matching ends here
-
-
-    // debug printing, this isn't necessary for the program to work
-    printf("Pattern flag: %d\n", pattern_flag);
-    printf("Context flag: %d\n", context_flag);
-    printf("Pattern: %s\n", pattern);
-    for (int i = 0; i < file_count; i++) {
-        printf("File %d: %s\n", i, file_arr[i]);
-    }
-    printf("File count: %d\n", file_count);
-    printf("Pattern length: %d\n", pattern_len);
-
-    
-
-    // unmap the pattern if pattern flag is set
-    if (pattern_flag) {
-        if (munmap(pattern, pattern_len+1) == -1) {
-                fprintf(stderr, "Failed to unmap pattern file to a string: %s.", strerror(errno));
-                return -1;
+        if(pattern == MAP_FAILED) {
+            fprintf(stderr, "Failed to map pattern files. %s", strerror(errno));
+            return -1;
         }
     }
-    return 0;
+
+    else {
+        pattern_length = strlen(pattern);
+    }
+
+
+
+    for(int i = 0; i < file_count; i++) {
+
+        int file_fd = open(file_arr[i], O_RDONLY);
+
+        if(file_fd == -1) {
+            fprintf(stderr, "Could not open file: %s", file_arr[i], strerror(errno));
+            return -1;
+        }
+
+        int mapped_file_length = lseek(file_fd,0, SEEK_END);
+
+        char *mapped_file = mmap(NULL, mapped_file_length, PROT_READ, MAP_PRIVATE, file_fd, 0);
+
+        if(close(file_fd) == -1) {
+            fprintf(stderr, "Could not close file: %s", file_arr[i], strerror(errno));
+            return -1;
+        }
+
+        if(mapped_file == MAP_FAILED) {
+            fprintf(stderr, "Failed to map file: %s", file_arr[i], strerror(errno));
+            return -1;
+        }
+
+        //from this point on now i have everything ready
+
+
+        for(int i = 0; i < mapped_file_length; i++) {
+            int count = 0;
+            bool match_failed_flag = 0;
+
+            if(pattern[0] == mapped_file[i]) {
+                for(int j = 0; j < pattern_length; j++) {
+                    if(pattern[j] != mapped_file[i+j]) {
+                        match_failed_flag = true;
+                    }
+                }
+            }
+
+            if(match_failed_flag == false) {
+                fprintf(stdout, "match complete\n");
+                return 0;
+            }
+        }
+
+
+        if(munmap(mapped_file, mapped_file_length) == -1) {
+            fprintf(stderr, "Failed to munmap a mapped_file. %s", strerror(errno));
+            return -1;
+        }
+
+        if(pattern_flag == true) {
+            if(munmap(pattern, pattern_length) == -1) {
+                fprintf(stderr, "Failed to munmap pattern file. %s", strerror(errno));
+                return -1;
+            }
+        }
+
+    }
+
+    fprintf(stdout, "no errors or matches found\n");
+
+    return 1;
+
 }

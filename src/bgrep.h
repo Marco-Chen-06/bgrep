@@ -1,10 +1,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <unistd.h>
-#include <stdbool.h>
 #include <fcntl.h>
-#include <sys/mman.h>
+#include <unistd.h>
 #include <string.h>
+#include <fnmatch.h>
+#include <dirent.h>
+#include <sys/syscall.h>
+#include <sys/stat.h>
+#include <stdbool.h>
+#include <pwd.h>     
+#include <grp.h>
+#include <time.h>
+#include <signal.h>
+#include <sys/times.h>
+#include <sys/wait.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/types.h>
 
 int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, int file_count);
