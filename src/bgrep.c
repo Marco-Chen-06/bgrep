@@ -2,7 +2,7 @@
 #include <setjmp.h>
 
 static sigjmp_buf sigbus_jmp;
-static volatile char *current_filename = NULL;
+static volatile char *current_file = NULL; // volatile because signal handler are like interrupt handlers
 
 void sigbus_handler(int sig) {
     siglongjmp(sigbus_jmp, 1);
@@ -130,11 +130,11 @@ int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, 
         
         //from this point on now i have everything ready
 
-        current_filename = file_arr[i];
+        current_file = file_arr[i];
         
         if (sigsetjmp(sigbus_jmp, 1) != 0) {
             // if sigbus detected, go to the next file
-            fprintf(stderr, "Got a SIGBUS while mmapping file: %s\n", current_filename);
+            fprintf(stderr, "Got a SIGBUS while mmapping file: %s\n", current_file);
             munmap(mapped_file, mapped_file_length);
             sigbus_flag = true;
             continue;
