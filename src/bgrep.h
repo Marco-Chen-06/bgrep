@@ -18,5 +18,6 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/types.h>
+#include <setjmp.h>
 
 int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, int file_count, int context_bytes);

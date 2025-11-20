@@ -1,4 +1,12 @@
 #include "bgrep.h"
+#include <setjmp.h>
+
+static sigjmp_buf sigbus_jmp;
+static volatile char *current_filename = NULL;
+
+void sigbus_handler(int sig) {
+    siglongjmp(sigbus_jmp, 1);
+}
 
 int main(int argc, char* argv[]) {
     //this is the case where there is no flags, only the default
@@ -54,8 +62,19 @@ int main(int argc, char* argv[]) {
 int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, int file_count, int context_bytes) {
 
     bool match_flag = false;
+    bool sigbus_flag = false; // set if sigbus is detected which means file might have changed size while still being mmapped
 
     int pattern_length = 0;
+    
+    struct sigaction sa;
+    sa.sa_handler = sigbus_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    
+    if (sigaction(SIGBUS, &sa, NULL) == -1) {
+        fprintf(stderr, "Failed sigaction for SIGBUS handling. %s\n", strerror(errno));
+        return -1;
+    }
     
     if(pattern_flag == true) {
         int pattern_fd = open(pattern, O_RDONLY);
@@ -91,7 +110,7 @@ int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, 
         int file_fd = open(file_arr[i], O_RDONLY);
 
         if(file_fd == -1) {
-            fprintf(stderr, "Could not open file: %s\n", file_arr[i], strerror(errno));
+            fprintf(stderr, "Could not open file: %s. %s\n", file_arr[i], strerror(errno));
             return -1;
         }
 
@@ -100,17 +119,26 @@ int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, 
         char *mapped_file = mmap(NULL, mapped_file_length, PROT_READ, MAP_PRIVATE, file_fd, 0);
 
         if(close(file_fd) == -1) {
-            fprintf(stderr, "Could not close file: %s\n", file_arr[i], strerror(errno));
+            fprintf(stderr, "Could not close file: %s. %s\n", file_arr[i], strerror(errno));
             return -1;
         }
 
         if(mapped_file == MAP_FAILED) {
-            fprintf(stderr, "Failed to map file: %s\n", file_arr[i], strerror(errno));
+            fprintf(stderr, "Failed to map file: %s. %s\n", file_arr[i], strerror(errno));
             return -1;
         }
         
         //from this point on now i have everything ready
 
+        current_filename = file_arr[i];
+        
+        if (sigsetjmp(sigbus_jmp, 1) != 0) {
+            // if sigbus detected, go to the next file
+            fprintf(stderr, "Got a SIGBUS while mmapping file: %s\n", current_filename);
+            munmap(mapped_file, mapped_file_length);
+            sigbus_flag = true;
+            continue;
+        }
         
         for(int j = 0; j < mapped_file_length; j++) {
 
@@ -145,6 +173,7 @@ int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, 
                         fprintf(stdout, " %X", mapped_file[k]);
                     }
                 }
+
                 fprintf(stdout, "\n");
 
                 match_flag = true;
@@ -165,6 +194,10 @@ int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, 
             fprintf(stderr, "Failed to munmap pattern file. %s\n", strerror(errno));
             return -1;
         }
+    }
+
+    if (sigbus_flag) {
+        return -1;
     }
 
     if(match_flag == true) {
