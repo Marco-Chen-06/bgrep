@@ -1,8 +1,5 @@
 #include "bgrep.h"
 
-int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, int file_count, int context_bytes);
-
-
 int main(int argc, char* argv[]) {
     //this is the case where there is no flags, only the default
 
@@ -10,7 +7,6 @@ int main(int argc, char* argv[]) {
     bool context_flag = false;
     char *pattern = NULL;
     int context_bytes = 0;
-
 
     char **file_arr = malloc(BUFSIZ * sizeof(char*)); // can store up to BUFSIZ filenames
 
@@ -65,7 +61,7 @@ int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, 
         int pattern_fd = open(pattern, O_RDONLY);
         
         if(pattern_fd == -1) {
-            perror("could not open pattern file");
+            fprintf(stderr, "Could not open pattern file: %s. %s", pattern, strerror(errno));
             return -1;
         }
 
@@ -74,12 +70,12 @@ int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, 
         pattern = mmap(NULL, pattern_length, PROT_READ, MAP_PRIVATE, pattern_fd, 0);
 
         if(close(pattern_fd) == -1) {
-            perror("could not close pattern file");
+            fprintf(stderr, "Could not close pattern file. %s", strerror(errno));
             return -1;
         }
 
         if(pattern == MAP_FAILED) {
-            perror("failed to map pattern files");
+            fprintf(stderr, "Failed to map pattern files. %s", strerror(errno));
             return -1;
         }
     }
@@ -95,7 +91,7 @@ int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, 
         int file_fd = open(file_arr[i], O_CREAT | O_RDONLY);
 
         if(file_fd == -1) {
-            perror("could not open file");
+            fprintf(stderr, "Could not open file: %s", file_arr[i], strerror(errno));
             return -1;
         }
 
@@ -104,12 +100,12 @@ int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, 
         char *mapped_file = mmap(NULL, mapped_file_length, PROT_READ, MAP_PRIVATE, file_fd, 0);
 
         if(close(file_fd) == -1) {
-            perror("could not close file");
+            fprintf(stderr, "Could not close file: %s", file_arr[i], strerror(errno));
             return -1;
         }
 
         if(mapped_file == MAP_FAILED) {
-            perror("failed to map file");
+            fprintf(stderr, "Failed to map file: %s", file_arr[i], strerror(errno));
             return -1;
         }
         
@@ -129,13 +125,36 @@ int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, 
             }
 
             if(bit_count == pattern_length) {
-                fprintf(stdout, "%s:%d\n", file_arr[i], j);
+            
+                fprintf(stdout, "%s:%d", file_arr[i], j);
+
+                if(context_flag == true) {
+                    for(int k = j-context_bytes; k < j+pattern_length+context_bytes-1; k++) {
+                        if(k < 0 || k >= mapped_file_length) {
+                            continue;
+                        }
+
+                        fprintf(stdout, " %c", mapped_file[k]);
+                    }
+
+                    for(int k = j-context_bytes; k < j+pattern_length+context_bytes-1; k++) {
+                        if(k < 0 || k >= mapped_file_length) {
+                            continue;
+                        }
+
+                        fprintf(stdout, " %X", mapped_file[k]);
+                    }
+                }
+                fprintf(stdout, "\n");
+
                 match_flag = true;
             }
+
+        
         }
 
         if(munmap(mapped_file, mapped_file_length) == -1) {
-            perror("munmap failed");
+            fprintf(stderr, "Failed to munmap a mapped file. %s", strerror(errno));
             return -1;
         }
 
@@ -143,7 +162,7 @@ int bgrep(bool pattern_flag, bool context_flag, char *pattern, char **file_arr, 
 
     if(pattern_flag == true) { //this part not really necessary because the process will just unmap automatically upon exiting
         if(munmap(pattern, pattern_length) == -1) {
-            perror("munmap failed for pattern file");
+            fprintf(stderr, "Failed to munmap pattern file. %s", strerror(errno));
             return -1;
         }
     }
