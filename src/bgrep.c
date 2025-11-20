@@ -2,7 +2,7 @@
 #include <setjmp.h>
 
 static sigjmp_buf sigbus_jmp;
-static volatile char *current_file = NULL; // volatile because signal handler are like interrupt handlers
+static char *current_file = NULL;
 
 void sigbus_handler(int sig) {
     siglongjmp(sigbus_jmp, 1);
